@@ -6,6 +6,7 @@ use dotenvy::dotenv;
 //================================================================
 pub mod models;
 pub mod websockets;
+pub mod signal;
 //================================================================
 #[actix_rt::main] 
 async fn main() -> Result<(), std::io::Error> {

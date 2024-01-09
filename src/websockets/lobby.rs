@@ -3,16 +3,42 @@ use std::collections::HashMap;
 use actix::{Recipient, Actor, Context, Handler};
 use serde::Serialize;
 use uuid::Uuid;
-use warp::filters::ws::Ws;
-
-use super::messages::{WsMessage, Disconnect, Connect};
+use webrtc::{ice_transport::ice_candidate::RTCIceCandidate, peer_connection::sdp::session_description::RTCSessionDescription};
+use super::messages::{WsMessage, Disconnect, Connect, OfferAnswer, IceCandidate};
 
 
 
 type Socket = Recipient<WsMessage>;
+
+#[derive(Debug)]
+pub struct User {
+    pub socket: Socket,
+    sdp: Option<RTCSessionDescription>, 
+    ice_candidate: Option<RTCIceCandidate>
+}
+
+impl User {
+    pub fn new(socket: Socket) -> Self {
+        Self{
+            socket,
+            sdp: None,
+            ice_candidate: None
+        }
+    }
+
+    pub fn set_sd(&mut self, sdp: RTCSessionDescription) {
+        self.sdp = Some(sdp);
+    }
+
+    pub fn set_ice_candidate(&mut self, ice_candidate: RTCIceCandidate) {
+        self.ice_candidate = Some(ice_candidate)
+    }
+}
+
+
 #[derive(Debug)]
 pub struct Room {
-    pub participants: HashMap<Uuid, Socket>
+    pub participants: HashMap<Uuid, User>
 }
 
 impl Default for Room {
@@ -39,7 +65,7 @@ impl Lobby {
     fn send_connect(&mut self, message: &str, room_id: &Uuid, id_to: &Uuid) {
         if let Some(room) = self.sessions.get(room_id) {
             if let Some(socket_recipient) = room.participants.get(id_to) {
-                let _ = socket_recipient
+                let _ = socket_recipient.socket
                 .do_send(
                     WsMessage(message.to_string())
                 );
@@ -79,7 +105,7 @@ impl Handler<Connect> for Lobby {
             self.sessions.insert(msg.room_id, Room::default());
         }
         if let Some(room) = self.sessions.get_mut(&msg.room_id) {
-            room.participants.insert(msg.self_id, msg.addr);
+            room.participants.insert(msg.self_id, User::new(msg.addr));
         }
         let result = ConnectionResponse::new(msg.self_id, msg.room_id);
         self.send_connect(serde_json::to_string(&result).unwrap().as_str(), &msg.room_id, &msg.self_id)
@@ -95,6 +121,27 @@ impl Handler<WsMessage> for Lobby {
     }
 }
 
+impl Handler<OfferAnswer> for Lobby {
+    type Result = ();
+
+    fn handle(&mut self, msg: OfferAnswer, ctx: &mut Self::Context) -> Self::Result {
+        if let Some(room) = self.sessions.get_mut(&msg.room_id) {
+            if let Some(usr) = room.participants.get_mut(&msg.self_id) {
+                usr.set_sd(msg.typ);
+                // TODO send Session Description
+            }
+        }
+
+    }
+}
+
+
+impl Handler<IceCandidate> for Lobby {
+    type Result = ();
+    fn handle(&mut self, msg: IceCandidate, ctx: &mut Self::Context) -> Self::Result {
+        // TODO add handler 
+    }
+}
 
 #[derive(Serialize, Debug)]
 struct ConnectionResponse {

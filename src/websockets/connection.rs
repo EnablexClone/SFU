@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 
 use super::lobby::Lobby;
-use super::messages::{Connect, Disconnect, WsMessage};
+use super::messages::{Connect, Disconnect, WsMessage, IceCandidate, OfferAnswer, Event};
 
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -108,6 +108,15 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsConn {
             }
             Ok(ws::Message::Nop) => (),
             Ok(ws::Message::Text(s)) => {
+                let parse: Event = serde_json::from_str(s.to_string().as_str()).expect("cannot convert");
+                match parse {
+                    Event::IceCandidate{candidate, self_id, room_id} => {
+                        self.lobby_addr.do_send(IceCandidate{candidate, self_id, room_id})
+                    },
+                    Event::OfferAnswer { typ, self_id, room_id } => {
+                        self.lobby_addr.do_send(OfferAnswer{typ, self_id, room_id})
+                    }
+                }
                 let x = WsMessage(s.to_string());
                 self.lobby_addr.do_send(x);
             }
@@ -123,5 +132,30 @@ impl Handler<WsMessage> for WsConn {
 
     fn handle(&mut self, msg: WsMessage, ctx: &mut Self::Context) {
         ctx.text(msg.0);
+    }
+}
+
+
+impl Handler<IceCandidate> for WsConn {
+    type Result = ();
+
+    fn handle(&mut self, msg: IceCandidate, ctx: &mut Self::Context) -> Self::Result {
+        let body = serde_json::to_string(&msg);
+        match body {
+            Ok(val) => ctx.text(val),
+            Err(e) => { println!("Failed to parse: {:?}\nAdress: {:?}", e, ctx.address())}
+        }
+    }
+}
+
+impl Handler<OfferAnswer> for WsConn {
+    type Result = ();
+
+    fn handle(&mut self, msg: OfferAnswer, ctx: &mut Self::Context) -> Self::Result {
+        let body = serde_json::to_string(&msg);
+        match body {
+            Ok(val) => ctx.text(val),
+            Err(e) => { println!("Failed to parse: {:?}\nAdress: {:?}", e, ctx.address())}
+        }
     }
 }

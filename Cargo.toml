@@ -33,3 +33,7 @@ env_logger = "0.10.0"
 
 # .ENV
 dotenvy = "0.15"
+
+# Web RTC 
+# webrtc-ice = "0.9.0"
+webrtc = "0.6.0"
