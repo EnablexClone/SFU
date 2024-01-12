@@ -10,7 +10,7 @@ use super::messages::{WsMessage, Disconnect, Connect, OfferAnswer, IceCandidate,
 
 type Socket = Recipient<WsMessage>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct User {
     pub socket: Socket,
     sdp: Option<RTCSessionDescription>, 
@@ -36,7 +36,7 @@ impl User {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Room {
     pub participants: HashMap<Uuid, User>
 }
@@ -54,7 +54,7 @@ impl Default for Room {
 
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Lobby {
     pub sessions: HashMap<Uuid, Room>,
 }

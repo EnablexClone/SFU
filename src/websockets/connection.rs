@@ -13,6 +13,7 @@ use super::messages::{Connect, Disconnect, WsMessage, IceCandidate, OfferAnswer,
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
+#[derive(Debug)]
 pub struct WsConn {
     lobby_addr: Addr<Lobby>,
     heartbeat: Instant,
@@ -123,6 +124,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsConn {
                     },
                     Event::AddPeer { self_id, room_id } => {
                         self.lobby_addr.do_send(AddPeer{self_id, room_id})
+                    }
+                    _ => {
+                        println!("Not found");
                     }
                 }
                 let x = WsMessage(s.to_string());
