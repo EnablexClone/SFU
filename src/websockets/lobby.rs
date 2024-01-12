@@ -26,12 +26,12 @@ impl User {
         }
     }
 
-    pub fn set_sd(&mut self, sdp: RTCSessionDescription) {
-        self.sdp = Some(sdp);
+    pub fn set_sd(&mut self, sdp: &RTCSessionDescription) {
+        self.sdp = Some(sdp.clone());
     }
 
-    pub fn set_ice_candidate(&mut self, ice_candidate: RTCIceCandidate) {
-        self.ice_candidate = Some(ice_candidate)
+    pub fn set_ice_candidate(&mut self, ice_candidate: &RTCIceCandidate) {
+        self.ice_candidate = Some(ice_candidate.clone())
     }
 }
 
@@ -48,6 +48,12 @@ impl Default for Room {
         }
     }
 }
+
+
+
+
+
+
 #[derive(Debug)]
 pub struct Lobby {
     pub sessions: HashMap<Uuid, Room>,
@@ -75,6 +81,22 @@ impl Lobby {
             println!("attempting to send message but couldn't find user id.");
         }
     }
+
+    fn send_session_description(&mut self, usr: &Uuid, message: &OfferAnswer) {
+        self.sessions.get(&message.room_id).unwrap()
+            .participants.get(usr).unwrap()
+            .socket.do_send(
+                WsMessage(serde_json::to_string(message).unwrap())
+            );
+    }
+
+    fn send_ice_candidate(&mut self, usr: &Uuid, message: &IceCandidate) {
+        self.sessions.get(&message.room_id).unwrap()
+        .participants.get(usr).unwrap()
+        .socket.do_send(
+            WsMessage(serde_json::to_string(message).unwrap())
+        );
+    }
 }
 
 
@@ -93,6 +115,7 @@ impl Handler<Disconnect> for Lobby {
                 self.sessions.remove(&msg.room_id);
             }
         }
+        // TODO add remove peer for all participants of room 
     }
 }
 
@@ -116,7 +139,7 @@ impl Handler<Connect> for Lobby {
 impl Handler<WsMessage> for Lobby { 
     type Result = ();
 
-    fn handle(&mut self, msg: WsMessage, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, _msg: WsMessage, _ctx: &mut Self::Context) -> Self::Result {
         
     }
 }
@@ -124,12 +147,23 @@ impl Handler<WsMessage> for Lobby {
 impl Handler<OfferAnswer> for Lobby {
     type Result = ();
 
-    fn handle(&mut self, msg: OfferAnswer, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: OfferAnswer, _ctx: &mut Self::Context) -> Self::Result {
+        // keys for sending the offer
+        let mut keys: Vec<Uuid> = Vec::new();
+
+        // for all users in room => send offer
         if let Some(room) = self.sessions.get_mut(&msg.room_id) {
             if let Some(usr) = room.participants.get_mut(&msg.self_id) {
-                usr.set_sd(msg.typ);
-                // TODO send Session Description
+                usr.set_sd(&msg.typ);
+                for key in room.participants.keys() {
+                    if *key != msg.self_id {
+                        keys.push(*key)
+                    }
+                }
             }
+        }
+        for key in keys {
+            self.send_session_description(&key, &msg);
         }
 
     }
@@ -138,8 +172,21 @@ impl Handler<OfferAnswer> for Lobby {
 
 impl Handler<IceCandidate> for Lobby {
     type Result = ();
-    fn handle(&mut self, msg: IceCandidate, ctx: &mut Self::Context) -> Self::Result {
-        // TODO add handler 
+    fn handle(&mut self, msg: IceCandidate, _ctx: &mut Self::Context) -> Self::Result {
+        let mut keys: Vec<Uuid> = Vec::new();
+        if let Some(room) = self.sessions.get_mut(&msg.room_id) {
+            if let Some(usr) = room.participants.get_mut(&msg.self_id) {
+                usr.set_ice_candidate(&msg.candidate);
+                for key in room.participants.keys() {
+                    if *key != msg.self_id {
+                        keys.push(*key)
+                    }
+                }
+            }
+        }
+        for key in keys {
+            self.send_ice_candidate(&key, &msg)
+        }
     }
 }
 
