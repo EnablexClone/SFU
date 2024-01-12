@@ -44,6 +44,23 @@ pub struct IceCandidate{
     pub room_id: Uuid,
 }
 
+#[derive(Message)]
+#[rtype(result = "()")]
+#[derive(Debug)]
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct RemovePeer {
+    pub self_id: Uuid,
+    pub room_id: Uuid,
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+#[derive(Debug)]
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct AddPeer {
+    pub self_id: Uuid,
+    pub room_id: Uuid,
+}
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -52,5 +69,7 @@ pub struct IceCandidate{
 #[serde(untagged)]
 pub enum Event {
     IceCandidate{candidate: RTCIceCandidate, self_id: Uuid, room_id: Uuid},
-    OfferAnswer{typ: RTCSessionDescription, self_id: Uuid, room_id: Uuid}
+    OfferAnswer{typ: RTCSessionDescription, self_id: Uuid, room_id: Uuid},
+    RemovePeer{self_id: Uuid, room_id: Uuid},
+    AddPeer{self_id: Uuid, room_id: Uuid}
 }

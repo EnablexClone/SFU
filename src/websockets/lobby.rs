@@ -4,7 +4,7 @@ use actix::{Recipient, Actor, Context, Handler};
 use serde::Serialize;
 use uuid::Uuid;
 use webrtc::{ice_transport::ice_candidate::RTCIceCandidate, peer_connection::sdp::session_description::RTCSessionDescription};
-use super::messages::{WsMessage, Disconnect, Connect, OfferAnswer, IceCandidate};
+use super::messages::{WsMessage, Disconnect, Connect, OfferAnswer, IceCandidate, RemovePeer, AddPeer};
 
 
 
@@ -91,6 +91,23 @@ impl Lobby {
     }
 
     fn send_ice_candidate(&mut self, usr: &Uuid, message: &IceCandidate) {
+        self.sessions.get(&message.room_id).unwrap()
+        .participants.get(usr).unwrap()
+        .socket.do_send(
+            WsMessage(serde_json::to_string(message).unwrap())
+        );
+    }
+
+
+    fn send_remove_peer(&mut self, usr: &Uuid, message: &RemovePeer) {
+        self.sessions.get(&message.room_id).unwrap()
+        .participants.get(usr).unwrap()
+        .socket.do_send(
+            WsMessage(serde_json::to_string(message).unwrap())
+        );
+    }
+
+    fn send_add_peer(&mut self, usr: &Uuid, message: &AddPeer) {
         self.sessions.get(&message.room_id).unwrap()
         .participants.get(usr).unwrap()
         .socket.do_send(
@@ -189,6 +206,51 @@ impl Handler<IceCandidate> for Lobby {
         }
     }
 }
+
+
+impl Handler<RemovePeer> for Lobby {
+    type Result = ();
+    fn handle(&mut self, msg: RemovePeer, _ctx: &mut Self::Context) -> Self::Result {
+        let mut keys: Vec<Uuid> = Vec::new();
+        if let Some(room) = self.sessions.get_mut(&msg.room_id) {
+            if let Some(_) = room.participants.get(&msg.self_id) {
+                room.participants.remove(&msg.self_id);
+            }
+            if room.participants.len() > 0 {
+                for key in room.participants.keys() {
+                    keys.push(*key);
+                }
+            }
+        }
+        for key in keys {
+            self.send_remove_peer(&key, &msg);
+        }
+    }
+}
+
+
+impl Handler<AddPeer> for Lobby {
+    type Result = ();
+
+    fn handle(&mut self, msg: AddPeer, _ctx: &mut Self::Context) -> Self::Result {
+        let mut keys: Vec<Uuid> = Vec::new();
+        if let Some(room) = self.sessions.get_mut(&msg.room_id) {
+            if let Some(_) = room.participants.get_mut(&msg.self_id) {
+                // TODO add peer
+                for key in room.participants.keys() {
+                    if *key != msg.self_id {
+                        keys.push(*key)
+                    }
+                }
+            }
+        }
+        for key in keys {
+            self.send_add_peer(&key, &msg)
+        }
+    }
+}
+
+
 
 #[derive(Serialize, Debug)]
 struct ConnectionResponse {

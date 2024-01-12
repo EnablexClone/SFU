@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 
 use super::lobby::Lobby;
-use super::messages::{Connect, Disconnect, WsMessage, IceCandidate, OfferAnswer, Event};
+use super::messages::{Connect, Disconnect, WsMessage, IceCandidate, OfferAnswer, Event, RemovePeer, AddPeer};
 
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -117,6 +117,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsConn {
                     },
                     Event::OfferAnswer { typ, self_id, room_id } => {
                         self.lobby_addr.do_send(OfferAnswer{typ, self_id, room_id})
+                    },
+                    Event::RemovePeer { self_id, room_id } => {
+                        self.lobby_addr.do_send(RemovePeer{self_id, room_id})
+                    },
+                    Event::AddPeer { self_id, room_id } => {
+                        self.lobby_addr.do_send(AddPeer{self_id, room_id})
                     }
                 }
                 let x = WsMessage(s.to_string());
@@ -161,3 +167,30 @@ impl Handler<OfferAnswer> for WsConn {
         }
     }
 }
+
+
+impl Handler<RemovePeer> for WsConn {
+    type Result = ();
+
+    fn handle(&mut self, msg: RemovePeer, ctx: &mut Self::Context) -> Self::Result {
+        let body = serde_json::to_string(&msg);
+        match body {
+            Ok(val) => ctx.text(val),
+            Err(e) => { println!("Failed to parse: {:?}\nAdress: {:?}", e, ctx.address())}
+        }
+    }
+}
+
+
+impl Handler<AddPeer> for WsConn {
+    type Result = ();
+
+    fn handle(&mut self, msg: AddPeer, ctx: &mut Self::Context) -> Self::Result {
+        let body = serde_json::to_string(&msg);
+        match body {
+            Ok(val) => ctx.text(val),
+            Err(e) => { println!("Failed to parse: {:?}\nAdress: {:?}", e, ctx.address())}
+        }
+    }
+}
+
